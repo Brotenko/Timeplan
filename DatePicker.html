@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+  </head>
+  <body>
+    <input type="date" id="myDate" >
+    <input type="button" value="Submit" onclick="getDate()" />
+    <script>
+        function getDate() {
+            let temp = document.getElementById("myDate").value;
+            google.script.run.updateSheets(temp);
+            google.script.host.close();
+        }
+    </script>
+  </body>
+</html>
