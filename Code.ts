@@ -70,7 +70,7 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
     date.setDate(1);
 
     // Sheet header
-    sheet.appendRow(['Date', 'Weekday', 'Start time', 'End time', 'Work time']);
+    sheet.appendRow(['Date', 'Weekday', 'Start time', 'End time', 'Additional break /\nInterruption', 'Work time', 'Vacation', 'Comments']);
 
     // Append new rows, for every day of the month
     while (date.getMonth() === month) {
@@ -79,11 +79,14 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
                          dayName, 
                          '', 
                          '', 
-                         `=IF(MINUS(D${row};C${row}) > TIMEVALUE("06:00:00"); IF(MINUS(D${row};C${row}) > TIMEVALUE("09:00:00"); MINUS(D${row};C${row}) - TIMEVALUE("00:45:00"); MINUS(D${row};C${row}) - TIMEVALUE("00:30:00")); MINUS(D${row};C${row}))`]);
+                         '',
+                         `=IF(D${row}-C${row}-E${row} > TIMEVALUE("06:00:00"); IF(D${row}-C${row}-E${row} > TIMEVALUE("09:00:00"); D${row}-C${row}-E${row} - TIMEVALUE("00:45:00"); D${row}-C${row}-E${row} - TIMEVALUE("00:30:00")); D${row}-C${row}-E${row})`,
+                         '',
+                         '']);
         
         // Weekend days have a grey backdrop
         if (dayName === 'Saturday' || dayName === 'Sunday') {
-            sheet.getRange(row,1,1,5).setBackgroundRGB(120,120,120);
+            sheet.getRange(row,1,1,8).setBackgroundRGB(200,200,200);
         }
         
         row++;
@@ -92,12 +95,15 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
 
     // Add a data validation rule that requires the use of proper date formats for the
     // "Start time" and "End time" columns. 
-    const requireDateEule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false).build();
-    sheet.getRange(`C2:D${row-1}`).setDataValidation(requireDateEule);
+    const requireDateRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false).build();
+    sheet.getRange(`C2:E${row-1}`).setDataValidation(requireDateRule);
+
+    const checkboxDataRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).build();
+    sheet.getRange(`G2:G${row-1}`).setDataValidation(checkboxDataRule);
 
     sheet.appendRow([' ']);
-    sheet.appendRow(['', 'Total working time', `=SUM(E2:E${row - 1})`]);
-    sheet.appendRow(['', 'Target time', `=MULTIPLY(TIMEVALUE("08:00:00"); COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"))`]);
+    sheet.appendRow(['', 'Total working time', `=SUMIF(G2:G${row - 1}; "=FALSE"; F2:F${row - 1})`]);
+    sheet.appendRow(['', 'Target time', `=MULTIPLY(TIMEVALUE("08:00:00"); COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"; G2:G${row - 1}; "=FALSE"))`]);
 
     row = sheet.getLastRow();
     sheet.appendRow(['', 'Overtime', `=C${row - 1}-C${row}`]);
@@ -107,8 +113,11 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
     sheet.getRange(`A2:A${row}`).setNumberFormat('dd-mm-yyyy');
 
     // Set font of the sheet header and lower block to bold.
-    sheet.getRange(1,1,1,5).setFontWeight("bold");
+    sheet.getRange(1,1,1,8).setFontWeight("bold");
     sheet.getRange(`B${row - 1}:B${row + 1}`).setFontWeight("bold");
+
+    sheet.autoResizeColumn(2);
+    sheet.autoResizeColumn(5);
 
     const retVal : MonthData = { sheetName: sheetName, 
                                  totalTime: `C${row - 1}`, 
@@ -136,7 +145,7 @@ function getSheetName(date : Date, locale: string) : string {
 /**
  * Gets called when the document is opened.
  */
-function onOpen() : void {
+function onOpen(e : any) : void {
     const ui : GoogleAppsScript.Base.Ui = SpreadsheetApp.getUi();
     ui.createMenu('Timeplan')
       .addItem('Add New Month', 'newMonth')
