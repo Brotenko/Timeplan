@@ -6,6 +6,7 @@ type MonthData = {
     readonly totalTime : string;
     readonly targetTime : string;
     readonly overtime : string;
+    readonly vacationDays : string;
 }
 
 /**
@@ -32,11 +33,12 @@ function datePicker() : void {
 /**
  * Gets called by the DatePicker.html through a Script Runner. Inserts a new sheet and then
  * populates said sheet.
+ * @param dateStr the name of date
  */
 function updateSheets(dateStr : string) : void {
     const date : Date = new Date(dateStr);
     const dateName : string = getSheetName(date, "en-EN");
-
+        
     SpreadsheetApp.getActiveSpreadsheet().insertSheet(dateName);
 
     updateOverview(addNewMonth(date, dateName));
@@ -45,13 +47,14 @@ function updateSheets(dateStr : string) : void {
 /**
  * Updates the overview by appending a new row for the newly added sheet, with references to
  * all the relevant data on the other sheet.
+ * @param monthData the specific MonthData that shall be appended to the overview sheet
  */
 function updateOverview(monthData : MonthData) : void {
     const mainSheet : GoogleAppsScript.Spreadsheet.Sheet | null = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Overview");
     const prefix : string = '=\'' + monthData.sheetName + '\'!';
 
     if (mainSheet) {
-        mainSheet.appendRow([monthData.sheetName, prefix + monthData.totalTime, prefix + monthData.targetTime, prefix + monthData.overtime]);
+        mainSheet.appendRow([monthData.sheetName, prefix + monthData.totalTime, prefix + monthData.targetTime, prefix + monthData.overtime, prefix + monthData.vacationDays]);
     } else {
         throw new Error('Please make sure you have a main-sheet named "Overview"')
     }
@@ -60,6 +63,9 @@ function updateOverview(monthData : MonthData) : void {
 /**
  * Handles everything there is to do for populating the new sheet. This includes the header,
  * dates, weekdays, formulas, data validation rules, formatting, and more.
+ * @param date the date of the given month/sheet
+ * @param sheetName the name of the given month/sheet
+ * @returns The MonthData for the month/sheet
  */
 function addNewMonth(date : Date, sheetName : string) : MonthData {
     const sheet : GoogleAppsScript.Spreadsheet.Sheet = SpreadsheetApp.getActiveSheet();
@@ -70,7 +76,7 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
     date.setDate(1);
 
     // Sheet header
-    sheet.appendRow(['Date', 'Weekday', 'Start time', 'End time', 'Additional break /\nInterruption', 'Work time', 'Vacation', 'Comments']);
+    sheet.appendRow(['Date', 'Weekday', 'Start time', 'End time', 'Additional break /\nInterruption', 'Work time', 'Vacation', 'Sick day', 'Holidays', 'Comments']);
 
     // Append new rows, for every day of the month
     while (date.getMonth() === month) {
@@ -86,7 +92,14 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
         
         // Weekend days have a grey backdrop
         if (dayName === 'Saturday' || dayName === 'Sunday') {
-            sheet.getRange(row,1,1,8).setBackgroundRGB(200,200,200);
+            sheet.getRange(row, 1, 1, 10).setBackgroundRGB(200, 200, 200);
+        }
+        
+        // Holidays have a blue backdrop and the name of the holiday in the respective column
+        let holidayName = isGermanHoliday(date);
+        if (holidayName !== null) {
+            sheet.getRange(row, 1, 1, 10).setBackgroundRGB(200, 200, 240);
+            sheet.getRange(row, 9).setValue(holidayName);
         }
         
         row++;
@@ -99,44 +112,69 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
     sheet.getRange(`C2:E${row-1}`).setDataValidation(requireDateRule);
 
     const checkboxDataRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).build();
-    sheet.getRange(`G2:G${row-1}`).setDataValidation(checkboxDataRule);
+    sheet.getRange(`G2:H${row-1}`).setDataValidation(checkboxDataRule);
 
     sheet.appendRow([' ']);
     sheet.appendRow(['', 'Total working time', `=SUMIF(G2:G${row - 1}; "=FALSE"; F2:F${row - 1})`]);
-    sheet.appendRow(['', 'Target time', `=MULTIPLY(TIMEVALUE("08:00:00"); COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"; G2:G${row - 1}; "=FALSE"))`]);
+    sheet.appendRow(['', 'Target time', `=MULTIPLY(TIMEVALUE("08:00:00"); COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"; G2:G${row - 1}; "=FALSE"; H2:H${row - 1}; "=FALSE"; J2:J${row - 1}; "="))`]);
 
     row = sheet.getLastRow();
     sheet.appendRow(['', 'Overtime', `=C${row - 1}-C${row}`]);
+    sheet.appendRow(['', 'Vacation Days', `=COUNTIFS(G2:G${row - 1}; "=TRUE"; H2:H${row - 1}; "=FALSE")`]);
 
     // Enforce date and time specific formats, for the "Date" coulmn and the lower block
     sheet.getRange(`C${row - 1}:C${row + 1}`).setNumberFormat('[hhh]:mm');
     sheet.getRange(`A2:A${row}`).setNumberFormat('dd-mm-yyyy');
 
     // Set font of the sheet header and lower block to bold.
-    sheet.getRange(1,1,1,8).setFontWeight("bold");
-    sheet.getRange(`B${row - 1}:B${row + 1}`).setFontWeight("bold");
+    sheet.getRange(1, 1, 1, 10).setFontWeight("bold");
+    sheet.getRange(`B${row - 1}:B${row + 2}`).setFontWeight("bold");
 
+    // Resize the columns to fit all the data without breaking out of boundaries
     sheet.autoResizeColumn(2);
     sheet.autoResizeColumn(5);
+    sheet.autoResizeColumn(9);
 
     const retVal : MonthData = { sheetName: sheetName, 
                                  totalTime: `C${row - 1}`, 
                                  targetTime: `C${row}`,
-                                 overtime: `C${row + 1}` };
+                                 overtime: `C${row + 1}`,
+                                 vacationDays: `C${row + 2}` };
 
     return retVal;
 }
 
 /**
+ * Returns the name of any given holidays, for a specific date, if there are any.
+ * @param date the date for which to check if there are holidays
+ * @returns The name of any given holidays, for a specific date, if there are any.
+ */
+function isGermanHoliday(date : Date) : string | null {
+    let cal = CalendarApp.getCalendarById('de.german.official#holiday@group.v.calendar.google.com');
+    let holidays : GoogleAppsScript.Calendar.CalendarEvent[] = cal.getEventsForDay(date);
+
+    if (holidays.length == 0) return null;
+
+    if (holidays[0].getDescription().includes("Baden-Württemberg") || holidays[0].getDescription() === "Gesetzlicher Feiertag") return holidays[0].getTitle();
+    return null;
+}
+
+/**
  * Returns the name of a weekday for any given date.
+ * @param date the date of the given day
+ * @param locale localisation region
+ * @returns Name of the day
  */
 function getDayName(date : Date, locale : string) : string {
-    return date.toLocaleDateString(locale, { weekday: 'long' });        
+    return date.toLocaleDateString(locale, { weekday: 'long' });
 }
 
 /**
  * Returns the name of a sheet, composed of the month (in text form), and the year
  * (in numeric form).
+ * @param date the date of the given sheet
+ * @param locale localisation region
+ * @returns Name of the sheet composed of the month (in text form), and the year (in numeric form).
  */
 function getSheetName(date : Date, locale: string) : string {
     return date.toLocaleDateString(locale, {year: 'numeric', month: 'long'});
@@ -144,6 +182,7 @@ function getSheetName(date : Date, locale: string) : string {
 
 /**
  * Gets called when the document is opened.
+ * @param e a related event
  */
 function onOpen(e : any) : void {
     const ui : GoogleAppsScript.Base.Ui = SpreadsheetApp.getUi();
