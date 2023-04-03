@@ -118,7 +118,7 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
     sheet.getRange(`G2:G${row-1}`).setDataValidation(dropDownDataRule);
 
     sheet.appendRow([' ']);
-    sheet.appendRow(['', 'Total working time', `=SUMIFS(F2:F32; G2:G${row - 1}; "<>Full"; G2:G${row - 1}; "<>Special")`]);
+    sheet.appendRow(['', 'Total working time', `=SUM(F2:F32)`]);
     sheet.appendRow(['', 'Target time', `=MULTIPLY(TIMEVALUE("08:00:00"); COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"; G2:G${row - 1}; "="; H2:H${row - 1}; "=FALSE"; I2:I${row - 1}; "=") + (COUNTIFS(G2:G${row - 1}; "=Half") * 0,5))`]);
 
     row = sheet.getLastRow();
