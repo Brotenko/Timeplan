@@ -111,19 +111,19 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
     const requireDateRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireDate().setAllowInvalid(false).build();
     sheet.getRange(`C2:E${row-1}`).setDataValidation(requireDateRule);
 
-    const checkboxDataRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireCheckbox().setAllowInvalid(false).build();
-    sheet.getRange(`H2:H${row-1}`).setDataValidation(checkboxDataRule);
+    const sickDropDownDataRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireValueInList(['Half', 'Full']).setAllowInvalid(false).build();
+    sheet.getRange(`H2:H${row-1}`).setDataValidation(sickDropDownDataRule);
 
-    const dropDownDataRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireValueInList(['Half', 'Full', 'Special']).setAllowInvalid(false).build();
-    sheet.getRange(`G2:G${row-1}`).setDataValidation(dropDownDataRule);
+    const vacationDropDownDataRule : GoogleAppsScript.Spreadsheet.DataValidation = SpreadsheetApp.newDataValidation().requireValueInList(['Half', 'Full', 'Special']).setAllowInvalid(false).build();
+    sheet.getRange(`G2:G${row-1}`).setDataValidation(vacationDropDownDataRule);
 
     sheet.appendRow([' ']);
     sheet.appendRow(['', 'Total working time', `=SUM(F2:F32)`]);
-    sheet.appendRow(['', 'Target time', `=MULTIPLY(TIMEVALUE("08:00:00"); COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"; G2:G${row - 1}; "="; H2:H${row - 1}; "=FALSE"; I2:I${row - 1}; "=") + (COUNTIFS(G2:G${row - 1}; "=Half") * 0,5))`]);
+    sheet.appendRow(['', 'Target time', `=MULTIPLY(TIMEVALUE("08:00:00"); COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"; G2:G${row - 1}; "="; H2:H${row - 1}; "="; I2:I${row - 1}; "=") + (COUNTIFS(G2:G${row - 1}; "=Half") * 0,5) + (COUNTIFS(H2:H${row - 1}; "=Half") * 0,5))`]);
 
     row = sheet.getLastRow();
     sheet.appendRow(['', 'Overtime', `=C${row - 1}-C${row}`]);
-    sheet.appendRow(['', 'Vacation Days', `=COUNTIFS(G2:G${row - 1}; "=Full"; H2:H${row - 1}; "=FALSE") + COUNTIFS(G2:G${row - 1}; "=Half") * 0,5`]);
+    sheet.appendRow(['', 'Vacation Days', `=COUNTIFS(G2:G${row - 1}; "=Full"; H2:H${row - 1}; "=") + COUNTIFS(G2:G${row - 1}; "=Half") * 0,5`]);
 
     // Enforce date and time specific formats, for the "Date" coulmn and the lower block
     sheet.getRange(`C${row - 1}:C${row + 1}`).setNumberFormat('[hhh]:mm');
