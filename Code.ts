@@ -7,6 +7,7 @@ type MonthData = {
     readonly targetTime : string;
     readonly overtime : string;
     readonly vacationDays : string;
+    readonly filledOut : string;
 }
 
 /**
@@ -54,7 +55,7 @@ function updateOverview(monthData : MonthData) : void {
     const prefix : string = '=\'' + monthData.sheetName + '\'!';
 
     if (mainSheet) {
-        mainSheet.appendRow([monthData.sheetName, prefix + monthData.totalTime, prefix + monthData.targetTime, prefix + monthData.overtime, prefix + monthData.vacationDays]);
+        mainSheet.appendRow([monthData.sheetName, prefix + monthData.totalTime, prefix + monthData.targetTime, `=IF('${monthData.sheetName}'!${monthData.filledOut}; '${monthData.sheetName}'!${monthData.overtime}; 0)`, prefix + monthData.vacationDays]);
     } else {
         throw new Error('Please make sure you have a main-sheet named "Overview"')
     }
@@ -124,6 +125,8 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
     row = sheet.getLastRow();
     sheet.appendRow(['', 'Overtime', `=C${row - 1}-C${row}`]);
     sheet.appendRow(['', 'Vacation Days', `=COUNTIFS(G2:G${row - 1}; "=Full"; H2:H${row - 1}; "=") + COUNTIFS(G2:G${row - 1}; "=Half") * 0,5`]);
+    sheet.appendRow([' ']);
+    sheet.appendRow(['', 'Filled Out', `=(COUNTIFS(F2:F${row - 1}; "<>0") = COUNTIFS(B2:B${row - 1}; "<>Sunday"; B2:B${row - 1}; "<>Saturday"; G2:G${row - 1}; "="; H2:H${row - 1}; "="; I2:I${row - 1}; "=") + COUNTIFS(G2:G${row - 1}; "=Half") + COUNTIFS(H2:H${row - 1}; "=Half"))`]);
 
     // Enforce date and time specific formats, for the "Date" coulmn and the lower block
     sheet.getRange(`C${row - 1}:C${row + 1}`).setNumberFormat('[hhh]:mm');
@@ -131,7 +134,7 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
 
     // Set font of the sheet header and lower block to bold.
     sheet.getRange(1, 1, 1, 10).setFontWeight("bold");
-    sheet.getRange(`B${row - 1}:B${row + 2}`).setFontWeight("bold");
+    sheet.getRange(`B${row - 1}:B${row + 4}`).setFontWeight("bold");
 
     // Resize the columns to fit all the data without breaking out of boundaries
     sheet.autoResizeColumn(2);
@@ -142,7 +145,8 @@ function addNewMonth(date : Date, sheetName : string) : MonthData {
                                  totalTime: `C${row - 1}`, 
                                  targetTime: `C${row}`,
                                  overtime: `C${row + 1}`,
-                                 vacationDays: `C${row + 2}` };
+                                 vacationDays: `C${row + 2}`,
+                                 filledOut: `C${row + 4}` };
 
     return retVal;
 }
